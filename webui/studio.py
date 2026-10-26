@@ -328,6 +328,14 @@ class Studio:
         try:
             if o.get('voice_id') and self.voice_blocked(o['voice_id']):
                 raise ValueError('参考声音已被标记为不再复用，请更换声音后新建任务。')
+            lock_designed_voice=o['mode']=='design' and len(chunks)>1
+            if lock_designed_voice and job.get('segment_voice_lock')!=1:
+                # Legacy retries may contain independently designed later segments.
+                # Keep the original first segment and archive the incompatible rest.
+                for index in range(1,len(chunks)):
+                    legacy=parts_dir/f'{index:04d}.wav'
+                    if legacy.exists():legacy.rename(parts_dir/f'{index:04d}.before-voice-lock.{time.time_ns()}.wav')
+                self.update(job_id,segment_voice_lock=1,segments_done=0)
             for i,text in enumerate(chunks):
                 if self.cancelled(job_id): raise InterruptedError()
                 part=parts_dir/f"{i:04d}.wav"
@@ -343,6 +351,18 @@ class Studio:
                         if voice:
                             ref_file=(self.voices/(voice['id']+".wav")).open("rb")
                             files={"ref_audio":("reference.wav",ref_file,"audio/wav")};data["ref_text"]=voice["transcript"]
+                        elif lock_designed_voice and i>0:
+                            # Always anchor to the same first segment, never chain
+                            # the preceding segment: chaining accumulates voice drift.
+                            anchor=parts_dir/'0000.wav'
+                            duration=sf.info(anchor).duration
+                            if not .5<=duration<=60:
+                                raise ValueError('首段音频须为 0.5–60 秒才能固定音色，请调整分段长度后新建任务。')
+                            if duration>=o['max_new_tokens']/12.5-.16:
+                                raise ValueError('首段可能达到生成长度上限，无法可靠用作声音参考；请缩短分段或提高生成长度上限。')
+                            ref_file=anchor.open('rb')
+                            files={'ref_audio':('first-segment.wav',ref_file,'audio/wav')}
+                            data.update(ref_text=chunks[0],instruction='',cfg_scale='1')
                         with httpx.Client(timeout=httpx.Timeout(900,connect=10),trust_env=False) as client:
                             with self.speech_response(client,data,files,ref_file,job_id) as response:
                                 if response.status_code!=200:
@@ -379,6 +399,7 @@ class Studio:
                     "seed":o["seed"],"cfg_scale":o["cfg_scale"],"duration":round(info.duration,2),
                     "elapsed":round(time.monotonic()-started,1),"created":time.time(),"url":"/audio/"+target.name,
                     "warnings":warnings,"segments":len(parts),"options":o,
+                    "voice_consistency":"first_segment_reference" if lock_designed_voice else "saved_reference" if o.get('voice_id') else "single_segment",
                     "effective_instruction":effective_instruction(o,job['text'])}
             self.update(job_id,status="complete",result=record,error="",audio_seconds=record["duration"])
         except InterruptedError:

@@ -20,7 +20,7 @@
 <div><label for="top-k">Top-k · 候选数量</label><input id="top-k" class="simple-input" type="number" min="1" max="1000" value="50" required></div>
 <div><label for="repetition">重复惩罚</label><input id="repetition" class="simple-input" type="number" min="1" max="2" step="0.05" value="1.1" required></div>
 <div><label for="max-tokens">每段最多音频帧</label><input id="max-tokens" class="simple-input" type="number" min="1" max="1500" value="750" required><small>750 帧约 60 秒，太低可能截断句子。</small></div>
-<div><label for="segment-chars">每段字符数</label><input id="segment-chars" class="simple-input" type="number" min="100" max="500" value="350" required><small>优先按英文句子切分。</small></div>
+<div><label for="segment-chars">每段字符数</label><input id="segment-chars" class="simple-input" type="number" min="100" max="500" value="350" required><small>优先按英文句子切分；声音设计的后续段落固定参考首段音色。</small></div>
 <div><label for="pause-ms">段间静音 · 毫秒</label><input id="pause-ms" class="simple-input" type="number" min="0" max="2000" value="180" required></div>
 <div><label for="variants">候选版本数</label><select id="variants" class="simple-input"><option value="1">1 个版本</option><option value="2">2 个版本</option><option value="3">3 个版本</option><option value="4">4 个版本</option></select><small>相邻随机种子，依次生成供挑选。</small></div></div>
 <label class="check-label"><input id="do-sample" type="checkbox" checked>启用随机采样（关闭后使用贪心解码）</label><label class="check-label"><input id="normalize" type="checkbox"> 统一峰值至 −1 dBFS（音频后处理）</label><button type="button" id="reset-options" class="text-button">恢复推荐参数</button><p class="hardware-note">本机使用低显存串行模式，GPU 并行批次及 CUDA Graph 加速保持关闭。模型没有精确语速/音高旋钮，请通过英文描述指导。段落拼接可能产生音色或语气变化，最终请试听。</p></details></div>

@@ -5,6 +5,8 @@ import time
 import wave
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from email.parser import BytesParser
+from urllib.parse import parse_qs
 
 import numpy as np
 import pytest
@@ -31,10 +33,16 @@ def backend():
         calls=0
         fail=False
         busy=0
+        requests=[]
         def log_message(self,*args): pass
         def do_POST(self):
             Handler.calls+=1
-            self.rfile.read(int(self.headers['Content-Length']))
+            body=self.rfile.read(int(self.headers['Content-Length']))
+            if 'multipart/' in self.headers.get('Content-Type',''):
+                message=BytesParser().parsebytes(('Content-Type: '+self.headers['Content-Type']+'\r\nMIME-Version: 1.0\r\n\r\n').encode()+body)
+                fields={part.get_param('name',header='content-disposition'):part.get_payload(decode=True) for part in message.get_payload()}
+            else:fields={k:v[0].encode() for k,v in parse_qs(body.decode(),keep_blank_values=True).items()}
+            Handler.requests.append(fields)
             if Handler.busy:
                 Handler.busy-=1;self.send_error(409,"previous stream cleanup");return
             if Handler.fail:
@@ -160,6 +168,48 @@ def test_sequential_queue_export_and_normalization(engine,backend):
             assert len([n for n in z.namelist() if n.endswith('.wav')])==2
         assert jobs[1]['started']>=jobs[0]['started']
     finally:engine.stop.set();engine.wake.set();engine.thread.join(3)
+
+
+def test_design_later_segments_clone_same_first_segment(engine,backend):
+    engine.backend,handler=backend
+    j=engine.submit(['A cheerful introduction for your home. '*12],{'segment_chars':100})
+    job=engine.get(j['id']);engine.process(job)
+    assert engine.get(j['id'])['status']=='complete'
+    requests=handler.requests
+    assert len(requests)>2 and 'ref_audio' not in requests[0]
+    anchor=(engine.output/(j['id']+'_parts')/'0000.wav').read_bytes()
+    first=split_text(job['text'],100)[0].encode()
+    for request in requests[1:]:
+        assert request['ref_audio']==anchor and request['ref_text']==first
+        assert request['instruction']==b'' and request['cfg_scale']==b'1'
+    assert engine.get(j['id'])['result']['voice_consistency']=='first_segment_reference'
+
+
+def test_legacy_retry_keeps_first_but_regenerates_later_segments(engine,backend):
+    engine.backend,handler=backend
+    j=engine.submit(['An introduction to a useful home product. '*8],{'segment_chars':100})
+    parts=engine.output/(j['id']+'_parts');parts.mkdir()
+    anchor=reference().read();(parts/'0000.wav').write_bytes(anchor)
+    (parts/'0001.wav').write_bytes(anchor)
+    engine.process(engine.get(j['id']))
+    assert engine.get(j['id'])['status']=='complete'
+    assert len(handler.requests)==engine.get(j['id'])['segment_count']-1
+    assert list(parts.glob('0001.before-voice-lock.*.wav'))
+    assert all(r['ref_audio']==anchor for r in handler.requests)
+    calls=handler.calls
+    engine.process(engine.get(j['id']))
+    assert handler.calls==calls # New retries reuse the locked segments.
+
+
+@pytest.mark.parametrize('mode',['clone','direction'])
+def test_saved_reference_remains_same_for_all_segments(engine,backend,mode):
+    engine.backend,handler=backend
+    voice=engine.save_voice('Reference','Hello world.',reference())
+    j=engine.submit(['A natural introduction to a useful home product. '*8],{'mode':mode,'voice_id':voice['id'],'segment_chars':100})
+    engine.process(engine.get(j['id']))
+    assert engine.get(j['id'])['status']=='complete'
+    saved=(engine.voices/(voice['id']+'.wav')).read_bytes()
+    assert all(r['ref_audio']==saved and r['ref_text']==b'Hello world.' for r in handler.requests)
 
 
 def test_cancel_running_and_retry_reuses_finished_segments(engine,backend):
