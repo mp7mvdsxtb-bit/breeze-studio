@@ -2,7 +2,29 @@
 
 本地 Breeze-TTS-2 英语配音工作台：声音设计、声音克隆、声音指导，长文分段、持久化批量队列、声音库、配方、音频导出、中文声音描述本地翻译。
 
-## Windows 运行
+## Windows 一键安装（推荐）
+
+安装 Git 后，在 PowerShell 执行：
+
+```powershell
+git clone https://github.com/mp7mvdsxtb-bit/breeze-studio.git D:\breeze-studio
+cd D:\breeze-studio
+.\一键安装.bat
+```
+
+也可以在 GitHub 点击 Code → Download ZIP，解压后双击 `一键安装.bat`。安装完成后双击 `启动语音工作室.bat`。
+
+脚本支持 Windows 10/11 x64、NVIDIA 显卡及可用驱动。建议至少 8GB 显存、16GB 内存，首次安装前预留 25GB 磁盘空间，并保证能访问 python.org、PyPI、PyTorch 和 Hugging Face。驱动需要自行安装，脚本不会更改显卡驱动。
+
+自动检查 Python 3.12 x64；缺少时从 python.org 下载带有效官方签名的 3.12.10 安装程序，按当前用户安装到 `tools/python312`，不改系统 PATH。随后建立独立 `venv`、安装 CUDA 12.8 PyTorch 和依赖，再验证 GPU。无需单独安装 CUDA Toolkit。
+
+语音模型约 7.68GB，翻译模型约 0.32GB；连同 PyTorch 等首次下载约 11GB。固定官方模型版本，逐文件验证 SHA256 或 Git blob 哈希；网络中断后重跑可续传，已验证文件会跳过。权重保存于代码目录上一级的 `models/Breeze-TTS-2`，翻译模型保存在代码目录 `translation-model`。失败时窗口会保留错误信息，解决后重跑即可。
+
+只检查、不安装或下载：`powershell -NoProfile -ExecutionPolicy Bypass -File webui/setup.ps1 -VerifyOnly`。
+
+从 v1.0.0 升级需手动运行一次安装 BAT，因为旧依赖表包含本机绝对路径；自动更新会按设计拦截依赖变化。
+
+## Windows 手动运行
 
 需要 Python 3.12、支持 CUDA 的 NVIDIA GPU；当前环境为 RTX 5060 8GB，低显存串行推理。其他硬件需自行验证。代码目录下的 `venv`、`translation-model`、`outputs` 均为本机数据，不提交。
 

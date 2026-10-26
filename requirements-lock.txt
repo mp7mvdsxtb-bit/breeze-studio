@@ -83,7 +83,7 @@ sympy==1.14.0
 threadpoolctl==3.7.0
 tokenizers==0.22.2
 tomlkit==0.14.0
-torch @ file:///D:/kreado-pipeline/breeze-runtime/torch-2.9.1%2Bcu128-cp312-cp312-win_amd64.whl#sha256=3a01f0b64c10a82d444d9fd06b3e8c567b1158b76b2764b8f51bfd8f535064b0
+torch==2.9.1+cu128
 torchaudio==2.9.1+cu128
 tqdm==4.70.1
 transformers==4.57.3

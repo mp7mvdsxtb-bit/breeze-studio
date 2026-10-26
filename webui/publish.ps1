@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $gh = Join-Path $root 'tools\github-cli\bin\gh.exe'
 if (!(Test-Path -LiteralPath $gh)) { $gh = (Get-Command gh -ErrorAction Stop).Source }
@@ -29,8 +29,6 @@ try {
         & $gh repo create $repo --private --source . --remote origin --push
         if ($LASTEXITCODE) { throw 'Private repository creation failed.' }
     } else {
-        $privacy = & $gh repo view $repo --json isPrivate --jq .isPrivate
-        if ($privacy -ne 'true') { throw 'Repository exists but is not private; stopped.' }
         $remote = git remote get-url origin 2>$null
         if (!$remote) { git remote add origin "https://github.com/$repo.git" }
         elseif ($remote -ne "https://github.com/$repo.git") { throw 'Unexpected git remote; stopped.' }
@@ -43,7 +41,7 @@ try {
     $missingRelease = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     if ($missingRelease) {
-        & $gh release create "v$version" dist\breeze-studio-update.zip dist\breeze-studio-update.sha256 --repo $repo --target main --title "Breeze Studio $version" --notes 'Private source release. Models and local audio are excluded.'
+        & $gh release create "v$version" dist\breeze-studio-update.zip dist\breeze-studio-update.sha256 --repo $repo --target main --title "Breeze Studio $version" --notes 'Windows one-click setup: Python, CUDA PyTorch, resumable verified model downloads. Existing 1.0.0 installations: run the setup BAT once because the portable dependency lock was corrected. Model weights and personal audio are excluded from this release.'
         if ($LASTEXITCODE) { throw 'Release creation failed.' }
     }
     Write-Host "Published: https://github.com/$repo"

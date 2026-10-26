@@ -1,0 +1,153 @@
+{
+  "models": [
+    {
+      "kind": "tts",
+      "repo": "BreezeBlue/Breeze-TTS-2",
+      "revision": "3e28c5151381a722f1d8661b4118c298caa77aa4",
+      "files": [
+        {
+          "rfilename": "LICENSE",
+          "blobId": "91765f274e37e08a9fced19a6167ca9d0e52f799",
+          "size": 18719
+        },
+        {
+          "rfilename": "README.md",
+          "blobId": "71a3f6da9361fd64cf31e8e4cd0ce39501a77e43",
+          "size": 9818
+        },
+        {
+          "rfilename": "audio_tokenizer/config.json",
+          "blobId": "06cc8dc4c5ec8a1929086b71b98c313020d9268b",
+          "size": 2336
+        },
+        {
+          "rfilename": "audio_tokenizer/configuration.json",
+          "blobId": "ab58e2eaf53cd14a1a2a7527d9261ceea93a24cd",
+          "size": 76
+        },
+        {
+          "rfilename": "audio_tokenizer/model.safetensors",
+          "blobId": "026d66bfb5d730dcfd56450c5e9e51b3ef4e0712",
+          "size": 682293092,
+          "lfs": {
+            "sha256": "836b7b357f5ea43e889936a3709af68dfe3751881acefe4ecf0dbd30ba571258",
+            "size": 682293092,
+            "pointerSize": 134
+          }
+        },
+        {
+          "rfilename": "audio_tokenizer/preprocessor_config.json",
+          "blobId": "ba40914f4f49ab98a8ca545d4892ef7291a39592",
+          "size": 234
+        },
+        {
+          "rfilename": "config.json",
+          "blobId": "4b44ed4d6189c57b780cd73915579de059b3ba18",
+          "size": 10161
+        },
+        {
+          "rfilename": "generation_config.json",
+          "blobId": "da03eee098c41e30790890d4c998325ddc1bd0b9",
+          "size": 251
+        },
+        {
+          "rfilename": "model-00001-of-00002.safetensors",
+          "blobId": "41fd609c2111cfd96e0438ae7796f46c9aaaea9a",
+          "size": 4961989890,
+          "lfs": {
+            "sha256": "abf813781256e10cbe81f2dbb415f897556225d4dfa0282d67aa8ea164e114a9",
+            "size": 4961989890,
+            "pointerSize": 135
+          }
+        },
+        {
+          "rfilename": "model-00002-of-00002.safetensors",
+          "blobId": "b6ff8b3dbb58d902d3d1c6cbd7db3f1c0daebb3e",
+          "size": 2004567152,
+          "lfs": {
+            "sha256": "36aa73b1a11361e1774db90d9c63c63303b294c022de112aa51904d940edcef1",
+            "size": 2004567152,
+            "pointerSize": 135
+          }
+        },
+        {
+          "rfilename": "model.safetensors.index.json",
+          "blobId": "b4467c038557531368ea999361e726fe61668ecf",
+          "size": 109004
+        },
+        {
+          "rfilename": "special_tokens_map.json",
+          "blobId": "1556c52ad39a242591f2dd6ed0401bd3582ba005",
+          "size": 886
+        },
+        {
+          "rfilename": "tokenizer.json",
+          "blobId": "fb1416c4de06b8c5a2dced4098f5c2aa101ba9cc",
+          "size": 33386945,
+          "lfs": {
+            "sha256": "d3ec9ac3eb2392389b9f5112e85d8b43316494addb587ba7b7a9d61eac23af96",
+            "size": 33386945,
+            "pointerSize": 133
+          }
+        },
+        {
+          "rfilename": "tokenizer_config.json",
+          "blobId": "466af463b97cdd1e912320df115ce3bdd54d1a85",
+          "size": 1157960
+        }
+      ]
+    },
+    {
+      "kind": "translation",
+      "repo": "Helsinki-NLP/opus-mt-zh-en",
+      "revision": "cf109095479db38d6df799875e34039d4938aaa6",
+      "files": [
+        {
+          "rfilename": "README.md",
+          "blobId": "50861444b1f4f181fe7ceccf971333b882c6c6f7",
+          "size": 3174
+        },
+        {
+          "rfilename": "config.json",
+          "blobId": "710dcdf966ec0aa5b3d991a35264c7cb174ccf14",
+          "size": 1394
+        },
+        {
+          "rfilename": "generation_config.json",
+          "blobId": "a43af728d2ddefe1ed73656ce004be6391c02e0a",
+          "size": 293
+        },
+        {
+          "rfilename": "pytorch_model.bin",
+          "blobId": "e5facf1dffdd4f081c924cb57679cb439d918bae",
+          "size": 312087009,
+          "lfs": {
+            "sha256": "9d8ceb91d103ef89400c9d9d62328b4858743cf8924878aee3b8afc594242ce0",
+            "size": 312087009,
+            "pointerSize": 134
+          }
+        },
+        {
+          "rfilename": "source.spm",
+          "blobId": "0ab361451ecc57b6223303c7b52e216ff40dc7e6",
+          "size": 804677
+        },
+        {
+          "rfilename": "target.spm",
+          "blobId": "878ae3c6ca6afea7971e3be0b18debdd0d41e3ea",
+          "size": 806530
+        },
+        {
+          "rfilename": "tokenizer_config.json",
+          "blobId": "60000ab989b1eec84f7b0299368f9dd498cdab61",
+          "size": 44
+        },
+        {
+          "rfilename": "vocab.json",
+          "blobId": "3be15dddf54535a2257b485f32c8f9226352d5c4",
+          "size": 1617902
+        }
+      ]
+    }
+  ]
+}

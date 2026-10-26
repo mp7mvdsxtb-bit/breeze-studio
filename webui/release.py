@@ -9,7 +9,7 @@ from updater import managed
 
 
 def source_files(root):
-    candidates=[root/name for name in ('version.json','requirements-lock.txt','启动语音工作室.bat','停止语音工作室.bat','使用说明.md','README.md','NOTICE.md')]
+    candidates=[root/name for name in ('version.json','requirements-lock.txt','一键安装.bat','启动语音工作室.bat','停止语音工作室.bat','使用说明.md','README.md','NOTICE.md')]
     for folder in ('app','webui'):
         for directory,dirs,files in os.walk(root/folder):
             dirs[:]=[d for d in dirs if d not in ('__pycache__','backup-v1','.git','.pytest_cache') and not (Path(directory)/d).is_symlink()]

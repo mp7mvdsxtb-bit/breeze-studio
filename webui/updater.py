@@ -12,7 +12,7 @@ import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-ROOT_FILES = {'version.json','requirements-lock.txt','启动语音工作室.bat','停止语音工作室.bat','使用说明.md','README.md','NOTICE.md'}
+ROOT_FILES = {'version.json','requirements-lock.txt','一键安装.bat','启动语音工作室.bat','停止语音工作室.bat','使用说明.md','README.md','NOTICE.md'}
 
 
 def managed(name):
