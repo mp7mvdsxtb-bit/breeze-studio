@@ -7,7 +7,9 @@ if ($LASTEXITCODE) { throw 'Run gh auth login first.' }
 $owner = & $gh api user --jq .login
 if ($LASTEXITCODE -or $owner -notmatch '^[A-Za-z0-9-]+$') { throw 'Cannot determine authenticated account.' }
 $repo = "$owner/breeze-studio"
-@{version='1.0.0';repository=$repo} | ConvertTo-Json | Set-Content (Join-Path $root 'version.json') -Encoding utf8
+$version = (Get-Content (Join-Path $root 'version.json') -Raw | ConvertFrom-Json).version
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version' }
+@{version=$version;repository=$repo} | ConvertTo-Json | Set-Content (Join-Path $root 'version.json') -Encoding utf8
 $source = Join-Path (Split-Path $root -Parent) 'breeze-studio-source'
 & (Join-Path $root 'venv\Scripts\python.exe') (Join-Path $PSScriptRoot 'prepare_source.py')
 if ($LASTEXITCODE) { throw 'Source preparation failed.' }
@@ -19,8 +21,11 @@ try {
     if ($LASTEXITCODE) { throw 'git add failed' }
     git diff --cached --quiet
     if ($LASTEXITCODE -eq 1) { git commit -m 'Build Breeze Studio with English production tools and startup updates' }
+    $ErrorActionPreference = 'Continue'
     & $gh repo view $repo --json isPrivate 2>$null | Out-Null
-    if ($LASTEXITCODE) {
+    $missingRepository = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($missingRepository) {
         & $gh repo create $repo --private --source . --remote origin --push
         if ($LASTEXITCODE) { throw 'Private repository creation failed.' }
     } else {
@@ -33,9 +38,12 @@ try {
         if ($LASTEXITCODE) { throw 'Push failed.' }
     }
     & (Join-Path $root 'venv\Scripts\python.exe') webui\release.py dist
-    & $gh release view v1.0.0 --repo $repo 2>$null | Out-Null
-    if ($LASTEXITCODE) {
-        & $gh release create v1.0.0 dist\breeze-studio-update.zip dist\breeze-studio-update.sha256 --repo $repo --target main --title 'Breeze Studio 1.0.0' --notes 'Initial private release. Source code only; models and local audio are excluded.'
+    $ErrorActionPreference = 'Continue'
+    & $gh release view "v$version" --repo $repo 2>$null | Out-Null
+    $missingRelease = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($missingRelease) {
+        & $gh release create "v$version" dist\breeze-studio-update.zip dist\breeze-studio-update.sha256 --repo $repo --target main --title "Breeze Studio $version" --notes 'Private source release. Models and local audio are excluded.'
         if ($LASTEXITCODE) { throw 'Release creation failed.' }
     }
     Write-Host "Published: https://github.com/$repo"
