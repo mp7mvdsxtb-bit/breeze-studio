@@ -11,7 +11,7 @@ from urllib.parse import parse_qs
 import numpy as np
 import pytest
 import soundfile as sf
-from studio import Studio, split_text, validate_options, effective_instruction, DEFAULTS
+from studio import Studio, split_text, validate_options, effective_instruction, vocal_event_instruction, DEFAULTS
 
 
 def reference():
@@ -210,6 +210,41 @@ def test_saved_reference_remains_same_for_all_segments(engine,backend,mode):
     assert engine.get(j['id'])['status']=='complete'
     saved=(engine.voices/(voice['id']+'.wav')).read_bytes()
     assert all(r['ref_audio']==saved and r['ref_text']==b'Hello world.' for r in handler.requests)
+
+
+@pytest.mark.parametrize('tag',['(laugh)','(sigh)','(cough)','(clears throat)','[笑]','[叹气]'])
+def test_vocal_events_have_explicit_nonverbal_direction(tag):
+    text=tag+' Ready to go.'
+    instruction=effective_instruction(validate_options({}),text)
+    assert 'Vocal event direction:' in instruction and 'For spoken words only:' in instruction
+    assert 'do not speak the tag names' in instruction
+    assert effective_instruction(validate_options({'mode':'clone'}),text)==vocal_event_instruction(text)
+    assert not vocal_event_instruction('A smiling voice with a sigh of relief.')
+
+
+def test_events_survive_first_segment_voice_lock(engine,backend):
+    engine.backend,handler=backend
+    text='A friendly introduction to a useful home product. '*4+'\n(laugh) That was nice. (sigh) Ready to go.'
+    j=engine.submit([text],{'segment_chars':100})
+    engine.process(engine.get(j['id']))
+    assert engine.get(j['id'])['status']=='complete'
+    event_requests=[r for r in handler.requests if b'(laugh)' in r['text'] or b'(sigh)' in r['text']]
+    assert event_requests
+    anchor=(engine.output/(j['id']+'_parts')/'0000.wav').read_bytes()
+    for request in event_requests:
+        assert request['ref_audio']==anchor and request['cfg_scale']==b'2'
+        assert b'Vocal event direction:' in request['instruction']
+
+
+def test_clone_events_use_same_reference_with_event_direction(engine,backend):
+    engine.backend,handler=backend
+    voice=engine.save_voice('Reference','Hello world.',reference())
+    j=engine.submit(['(laugh) That was nice. (sigh) Ready to go.'],{'mode':'clone','voice_id':voice['id']})
+    engine.process(engine.get(j['id']))
+    assert engine.get(j['id'])['status']=='complete'
+    assert handler.requests[0]['cfg_scale']==b'2'
+    assert b'clearly audible' in handler.requests[0]['instruction']
+    assert handler.requests[0]['ref_audio']==(engine.voices/(voice['id']+'.wav')).read_bytes()
 
 
 def test_cancel_running_and_retry_reuses_finished_segments(engine,backend):

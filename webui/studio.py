@@ -36,18 +36,34 @@ DEFAULTS = {"mode":"design", "instruction":PRESETS[0]["instruction"], "cfg_scale
 TERMINAL = {"complete", "error", "cancelled", "interrupted"}
 
 
+def vocal_event_instruction(text):
+    """Only request the model's documented inline events, at their marked positions."""
+    events=[(r'\(laugh\)|\[笑\]', 'At each (laugh) or [笑] marker, produce a clearly audible short natural laugh or chuckle, not only a smiling speaking tone.'),
+            (r'\(sigh\)|\[叹气\]', 'At each (sigh) or [叹气] marker, produce a clearly audible relaxed exhaled sigh before continuing the words.'),
+            (r'\(cough\)|\[咳嗽\]', 'At each (cough) or [咳嗽] marker, produce a short audible cough.'),
+            (r'\(clears throat\)|\[清嗓子\]', 'At each (clears throat) or [清嗓子] marker, audibly clear the throat briefly.')]
+    instructions=[instruction for pattern,instruction in events if re.search(pattern,text,re.I)]
+    if not instructions:return ''
+    return ('Vocal event direction: Keep the same speaker identity and accent. '+ ' '.join(instructions)+
+            ' Perform only the marked events, in order, as nonverbal sounds; do not speak the tag names. Resume the same clear speaking voice after each event.')
+
+
 def effective_instruction(options, text):
-    if options['mode']=='clone': return ''
+    event_direction=vocal_event_instruction(text)
+    if options['mode']=='clone': return event_direction
     profile=options.get('tone_profile','clear')
     english=len(re.findall('[A-Za-z]',text))>=len(re.findall('[\u4e00-\u9fff]',text))
     if english:
         quality=("Voice quality priority: a clean, clear, smooth, fully voiced and bright tone, with easy phonation and crisp articulation. "
                  if profile=='clear' else
                  "Voice quality priority: a clean, smooth, rounded, fully voiced and resonant tone, with easy phonation and clear articulation. ")
-        quality+="Keep the delivery lively and natural. Avoid rasp, hoarseness, gravelly texture, creaky vocal fry, whispering and excessive breathiness."
+        quality+="Keep the delivery lively and natural. "
+        quality+=("For spoken words only: " if event_direction else '')+"Avoid rasp, hoarseness, gravelly texture, creaky vocal fry, whispering and excessive breathiness."
     else:
         quality='音色优先要求：清亮干净、平滑通透、自然实声、吐字清楚；保持生动自然，避免沙哑、烟嗓、粗粝、气泡音、耳语和过多气声。'
         if profile=='full':quality=quality.replace('清亮干净、平滑通透','圆润饱满、干净平滑')
+        if event_direction:quality='以下音质限制仅用于正常说话，不限制标记处的笑声、叹气、咳嗽或清嗓子：'+quality
+    if event_direction:quality+=' Tagged nonverbal events may use their natural breath and texture. '+event_direction
     return options['instruction'].strip()+'\n\n'+quality
 
 
@@ -328,6 +344,11 @@ class Studio:
         try:
             if o.get('voice_id') and self.voice_blocked(o['voice_id']):
                 raise ValueError('参考声音已被标记为不再复用，请更换声音后新建任务。')
+            if vocal_event_instruction(job['text']) and job.get('vocal_event_guidance')!=1:
+                for index in range(len(chunks)):
+                    legacy=parts_dir/f'{index:04d}.wav'
+                    if legacy.exists():legacy.rename(parts_dir/f'{index:04d}.before-event-guidance.{time.time_ns()}.wav')
+                self.update(job_id,vocal_event_guidance=1,segments_done=0)
             lock_designed_voice=o['mode']=='design' and len(chunks)>1
             if lock_designed_voice and job.get('segment_voice_lock')!=1:
                 # Legacy retries may contain independently designed later segments.
@@ -344,6 +365,8 @@ class Studio:
                     tuning={key:o.get(key,DEFAULTS[key]) for key in ("temperature","top_p","top_k","repetition_penalty","max_new_tokens","do_sample")}
                     data={"text":text,"instruction":effective_instruction(o,text),"cfg_scale":str(o["cfg_scale"]),
                           "seed":str(o["seed"]),"controls":json.dumps(tuning)}
+                    event_direction=vocal_event_instruction(text)
+                    if o['mode']=='clone' and event_direction:data['cfg_scale']='2'
                     voice=self.voice(o["voice_id"]) if o["voice_id"] else None
                     ref_file=None
                     try:
@@ -362,7 +385,7 @@ class Studio:
                                 raise ValueError('首段可能达到生成长度上限，无法可靠用作声音参考；请缩短分段或提高生成长度上限。')
                             ref_file=anchor.open('rb')
                             files={'ref_audio':('first-segment.wav',ref_file,'audio/wav')}
-                            data.update(ref_text=chunks[0],instruction='',cfg_scale='1')
+                            data.update(ref_text=chunks[0],instruction=event_direction,cfg_scale='2' if event_direction else '1')
                         with httpx.Client(timeout=httpx.Timeout(900,connect=10),trust_env=False) as client:
                             with self.speech_response(client,data,files,ref_file,job_id) as response:
                                 if response.status_code!=200:
@@ -400,6 +423,7 @@ class Studio:
                     "elapsed":round(time.monotonic()-started,1),"created":time.time(),"url":"/audio/"+target.name,
                     "warnings":warnings,"segments":len(parts),"options":o,
                     "voice_consistency":"first_segment_reference" if lock_designed_voice else "saved_reference" if o.get('voice_id') else "single_segment",
+                    "vocal_event_guidance":bool(vocal_event_instruction(job['text'])),
                     "effective_instruction":effective_instruction(o,job['text'])}
             self.update(job_id,status="complete",result=record,error="",audio_seconds=record["duration"])
         except InterruptedError:
