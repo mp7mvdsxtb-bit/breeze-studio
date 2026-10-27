@@ -171,6 +171,14 @@ async def save_voice(name:str=Form(...),transcript:str=Form(...),audio:UploadFil
 def voices():return studio.list_voices()
 
 
+@app.delete('/api/voices/{voice_id}')
+def delete_voice(voice_id:str):
+    try:return studio.delete_voice(voice_id)
+    except KeyError as exc:raise HTTPException(404,str(exc)) from exc
+    except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+    except OSError as exc:raise HTTPException(409,'无法删除参考音频，请停止播放后再试。') from exc
+
+
 @app.post("/api/import")
 async def import_text(file:UploadFile=File(...)):
     filename=file.filename or "";content=await read_upload(file,2*1024*1024)

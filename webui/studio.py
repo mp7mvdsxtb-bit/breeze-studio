@@ -213,6 +213,18 @@ class Studio:
         for voice in voices:voice['blocked']=self.voice_blocked(voice['id'])
         return voices
 
+    def delete_voice(self,voice_id):
+        if not re.fullmatch(r'[0-9a-f]{32}',voice_id):raise ValueError('声音编号无效')
+        with self.lock,self.connect() as db:
+            if not db.execute('SELECT 1 FROM voices WHERE id=?',(voice_id,)).fetchone():
+                raise KeyError('声音不存在或已删除')
+            pending=db.execute("SELECT data FROM jobs WHERE status IN ('queued','running','cancelling')").fetchall()
+            if any(json.loads(row[0])['options'].get('voice_id')==voice_id for row in pending):
+                raise ValueError('排队中或正在运行的任务正在使用这个声音，请等待完成或取消任务后再删除。')
+            (self.voices/(voice_id+'.wav')).unlink(missing_ok=True)
+            db.execute('DELETE FROM voices WHERE id=?',(voice_id,))
+        return {'deleted':True,'id':voice_id}
+
     def voice_blocked(self,voice_id):
         if voice_id in self.setting('blocked_voice_ids',[]):return True
         blocked=self.setting('blocked_audio_signatures',[])
@@ -270,6 +282,8 @@ class Studio:
             raise ValueError('这份参考声音已标记为不再复用，请更换参考声音，或使用清亮声音设计。')
         batch_id=uuid.uuid4().hex; ids=[]
         with self.lock,self.connect() as db:
+            if options['mode']!='design' and not self.voice(options['voice_id']):
+                raise ValueError('参考声音已删除，请重新选择声音。')
             pending=db.execute("SELECT COUNT(*) FROM jobs WHERE status IN ('queued','running','cancelling')").fetchone()[0]
             if pending+len(texts)*options["variants"]>1000: raise ValueError("待处理队列上限为 1000 项")
             for i,text in enumerate(texts):
@@ -295,6 +309,8 @@ class Studio:
             job=self.get(job_id)
             if not job or job["status"] not in {"error","cancelled","interrupted"}:
                 raise ValueError("只有失败、取消或中断的任务可以重试")
+            if job['options']['mode']!='design' and not self.voice(job['options']['voice_id']):
+                raise ValueError('任务使用的参考声音已删除，请选择其他声音后新建任务。')
             self.update(job_id,status="queued",error="",audio_seconds=0)
         self.wake.set()
 
