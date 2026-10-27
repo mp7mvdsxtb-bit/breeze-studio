@@ -22,9 +22,10 @@ import soundfile as sf
 from audio_quality import inspect_audio, gentle_highpass
 
 PRESETS = [
-    {"id":"clean-commercial", "name":"英语商业介绍 · 清晰自然", "instruction":"A clear American English voice speaking to one listener, natural, fully voiced and smooth. Relaxed close conversational delivery, crisp intelligible words and gentle natural expression. No whispering, vocal fry or coarse texture."},
+    {"id":"clean-commercial", "name":"美式女声 · 清晰自然（推荐）", "instruction":"A clear American English woman speaking to one listener, natural, fully voiced and smooth. Relaxed close conversational delivery, crisp intelligible words and gentle natural expression. No whispering, vocal fry or coarse texture."},
+    {"id":"clean-commercial-male", "name":"美式男声 · 清晰自然", "instruction":"A clear American English man speaking to one listener, natural, fully voiced and smooth. Relaxed close conversational delivery, crisp intelligible words and gentle natural expression. No whispering, vocal fry or coarse texture."},
     {"id":"clean-warm", "name":"温暖饱满 · 自然实声", "instruction":"A warm, rounded American English voice with clear fully voiced speech and natural resonance. Easy conversational phrasing, believable expression and precise articulation, without whispering or gravelly texture."},
-    {"id":"ugc", "name":"美式 UGC · 欢快推荐", "instruction":"A cheerful young American woman sharing a useful find with a friend. Bright smiling voice, spontaneous conversational rhythm, expressive pitch changes and playful emphasis. Enthusiastic but believable, not a formal announcer."},
+    {"id":"ugc", "name":"美式女声 · 欢快推荐（默认）", "instruction":"A cheerful young American woman sharing a useful find with a friend. Bright smiling voice, spontaneous conversational rhythm, expressive pitch changes and playful emphasis. Enthusiastic but believable, not a formal announcer."},
     {"id":"friendly", "name":"美式女声 · 自然介绍", "instruction":"A friendly American English woman speaking naturally to one listener. Warm clear voice, relaxed connected speech, varied emphasis and an easy conversational pace."},
     {"id":"male", "name":"美式男声 · 沉稳可信", "instruction":"A confident American English male narrator with a warm lower register. Conversational, grounded and trustworthy. Clear pronunciation, subtle expressive emphasis and a natural unhurried pace."},
     {"id":"british", "name":"英式英语 · 优雅讲述", "instruction":"A warm British English woman with a contemporary standard Southern British accent. Understated, articulate and conversational, with gentle melodic phrasing and a relaxed pace."},
@@ -33,7 +34,7 @@ PRESETS = [
     {"id":"energetic", "name":"活力男声 · 明亮有劲", "instruction":"An upbeat young American English man with an energetic smiling voice. Playful conversational emphasis, lively pitch variation and brisk but clear connected speech."},
     {"id":"calm", "name":"舒缓女声 · 轻柔自然", "instruction":"A gentle American English woman speaking calmly and warmly. Soft clear tone, unhurried pacing, subtle natural expression, like a reassuring conversation."},
 ]
-DEFAULTS = {"mode":"design", "instruction":PRESETS[2]["instruction"], "cfg_scale":4,
+DEFAULTS = {"mode":"design", "instruction":next(p['instruction'] for p in PRESETS if p['id']=='ugc'), "cfg_scale":4,
             "seed":42, "temperature":0.9, "top_p":1.0, "top_k":50,
             "repetition_penalty":1.1, "max_new_tokens":750, "segment_chars":350,
             "pause_ms":180, "variants":1, "voice_id":"", "normalize":False,"do_sample":True,"tone_profile":"clear","enhance":False}

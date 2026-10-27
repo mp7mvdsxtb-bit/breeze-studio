@@ -6,7 +6,15 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 from test_studio import engine,backend,reference
 from audio_quality import inspect_audio,gentle_highpass
+from studio import DEFAULTS,PRESETS
+from quality_benchmark import BASELINE,CANDIDATE,CANDIDATE_MALE
 import server
+
+
+def test_blind_listening_presets_keep_female_default_and_add_clean_male():
+    assert DEFAULTS['instruction']==BASELINE
+    assert any(p['instruction']==CANDIDATE for p in PRESETS)
+    assert any(p['instruction']==CANDIDATE_MALE for p in PRESETS)
 
 
 def test_audio_quality_warnings_and_gentle_filter(tmp_path):
