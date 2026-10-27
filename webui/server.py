@@ -97,6 +97,57 @@ def update_settings(payload:dict):
 def index():return FileResponse(STATIC/"index.html",headers={"Cache-Control":"no-cache"})
 
 
+@app.get('/benchmark')
+def benchmark_page():return FileResponse(STATIC/'benchmark.html',headers={'Cache-Control':'no-cache'})
+
+
+def benchmark_record(benchmark_id):
+    if not re.fullmatch(r'[0-9a-f]{32}',benchmark_id):raise HTTPException(404)
+    path=studio.output/'benchmarks'/(benchmark_id+'.json')
+    if not path.is_file():raise HTTPException(404)
+    try:return json.loads(path.read_text(encoding='utf-8'))
+    except (ValueError,OSError) as exc:raise HTTPException(503,'评测清单正在更新，请稍后重试。') from exc
+
+
+@app.get('/api/benchmarks')
+def list_benchmarks():
+    folder=studio.output/'benchmarks'
+    if not folder.is_dir():return {'items':[]}
+    return {'items':[p.stem for p in sorted(folder.glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True) if re.fullmatch(r'[0-9a-f]{32}',p.stem)]}
+
+
+@app.get('/api/benchmarks/{benchmark_id}')
+def benchmark_status(benchmark_id:str,reveal:bool=False):
+    record=benchmark_record(benchmark_id);pairs=[];totals={}
+    for pair in record.get('pairs',[]):
+        entry={'number':pair['number'],'text':pair['text']}
+        for label in ('A','B'):
+            item=pair[label];job=studio.get(item['id'])
+            if not job:entry[label]={'status':'missing'};continue
+            feedback=job.get('subjective_feedback',[])
+            detail={'id':item['id'],'status':job['status'],'feedback':feedback,'url':job.get('result',{}).get('url')}
+            if reveal:
+                detail['system']=item['system']
+                total=totals.setdefault(item['system'],{'rated':0,'satisfied':0,'raspy':0,'hollow':0,'unnatural':0})
+                if feedback:
+                    total['rated']+=1
+                    for name in ('satisfied','raspy','hollow','unnatural'):total[name]+=name in feedback
+            entry[label]=detail
+        pairs.append(entry)
+    return {'pairs':pairs,'submitted':record.get('completed_submission',False),'totals':totals if reveal else None}
+
+
+@app.post('/api/benchmarks/{benchmark_id}/cancel')
+def cancel_benchmark(benchmark_id:str):
+    record=benchmark_record(benchmark_id);count=0
+    with studio.lock:
+        for job_id in record.get('submitted_ids',[]):
+            job=studio.get(job_id)
+            if job and job['status'] in ('queued','running'):
+                studio.cancel(job_id);count+=1
+    return {'cancelled':count}
+
+
 @app.get("/api/state")
 def state():
     jobs=studio.list_jobs(limit=50)["items"]
@@ -213,6 +264,88 @@ def preview(payload:dict):
 def submit(payload:dict):
     try:return studio.submit(payload.get("texts"),payload.get("options",{}))
     except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.post('/api/voice-preview',status_code=202)
+def voice_preview(payload:dict):
+    try:
+        text=payload.get('text','')
+        if not isinstance(text,str) or not text.strip() or len(text)>30000:raise ValueError('请填写不超过 30000 字的文案。')
+        opts=payload.get('options',{})
+        if not isinstance(opts,dict):raise ValueError('参数错误')
+        sample=split_text(text,160)[0]
+        return {**studio.submit([sample],{**opts,'mode':'design','voice_id':'','variants':3}),'sample':sample}
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.post('/api/voice-preview/check')
+def voice_preview_check(payload:dict):
+    try:
+        texts=payload.get('texts');options=validate_options(payload.get('options',{}))
+        if not isinstance(texts,list) or not 1<=len(texts)<=200 or any(not isinstance(t,str) or not t.strip() or len(t)>30000 for t in texts):raise ValueError('文案格式错误。')
+        return {'requires_choice':options['mode']=='design' and any(len(split_text(t,options['segment_chars']))>1 for t in texts)}
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.post('/api/voice-preview/{job_id}/choose')
+def choose_preview_voice(job_id:str):
+    job=studio.get(job_id)
+    if not job or job['status']!='complete':raise HTTPException(404,'候选声音尚未完成。')
+    if job.get('segment_count',1)!=1:raise HTTPException(400,'请选择未分段的短试听作为参考。')
+    if any('长度上限' in w for w in job['result'].get('warnings',[])):raise HTTPException(400,'试听可能被截断，请缩短文案后重新试听。')
+    path=studio.output/(job_id+'.wav')
+    try:
+        with path.open('rb') as audio:return studio.save_voice('已选英语音色 '+job_id[:8],job['text'],audio)
+    except (ValueError,RuntimeError,OSError) as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.post('/api/voice-feedback/{job_id}')
+def voice_feedback(job_id:str,payload:dict):
+    labels=payload.get('labels')
+    allowed={'satisfied','raspy','hollow','unnatural'}
+    if not isinstance(labels,list) or len(labels)>4 or any(not isinstance(v,str) or v not in allowed for v in labels) or len(set(labels))!=len(labels):
+        raise HTTPException(400,'试听反馈格式错误。')
+    with studio.lock:
+        job=studio.get(job_id)
+        if not job or job['status']!='complete':raise HTTPException(404,'任务不存在或尚未完成。')
+        studio.update(job_id,subjective_feedback=labels,result={**job['result'],'subjective_feedback':labels})
+    return {'labels':labels}
+
+
+@app.get('/api/jobs/{job_id}/segments/{index}/audio')
+def segment_audio(job_id:str,index:int):
+    if not re.fullmatch(r'[0-9a-f]{32}',job_id) or index<0:raise HTTPException(404)
+    job=studio.get(job_id)
+    if not job or index>=job.get('segment_count',0):raise HTTPException(404)
+    path=studio.output/(job_id+'_parts')/f'{index:04d}.wav'
+    if not path.is_file():raise HTTPException(404)
+    return FileResponse(path,media_type='audio/wav')
+
+
+@app.get('/api/jobs/{job_id}/segments')
+def segment_list(job_id:str):
+    if not re.fullmatch(r'[0-9a-f]{32}',job_id):raise HTTPException(404)
+    job=studio.get(job_id)
+    if not job or job['status']!='complete':raise HTTPException(404)
+    chunks=split_text(job['text'],job['options']['segment_chars'])
+    parts=studio.output/(job_id+'_parts')
+    if any(not (parts/f'{i:04d}.wav').is_file() for i in range(len(chunks))):raise HTTPException(404,'历史分段文件不存在。')
+    from audio_quality import inspect_audio
+    return {'items':[{'index':i,'text':text,'url':f'/api/jobs/{job_id}/segments/{i}/audio','warnings':inspect_audio(parts/f'{i:04d}.wav')} for i,text in enumerate(chunks)]}
+
+
+@app.post('/api/jobs/{job_id}/segments/{index}/regenerate',status_code=202)
+def regenerate_segment(job_id:str,index:int):
+    try:return studio.regenerate_segment(job_id,index)
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.get('/api/jobs/{job_id}/original')
+def original_audio(job_id:str):
+    if not re.fullmatch(r'[0-9a-f]{32}',job_id):raise HTTPException(404)
+    path=studio.output/(job_id+'.raw.wav')
+    if not path.is_file():raise HTTPException(404)
+    return FileResponse(path,media_type='audio/wav')
 
 
 @app.post("/api/generate",status_code=202)

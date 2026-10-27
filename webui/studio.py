@@ -5,6 +5,7 @@ import io
 import hashlib
 import json
 import math
+import shutil
 import re
 import sqlite3
 import threading
@@ -18,8 +19,11 @@ from pathlib import Path
 import httpx
 import numpy as np
 import soundfile as sf
+from audio_quality import inspect_audio, gentle_highpass
 
 PRESETS = [
+    {"id":"clean-commercial", "name":"英语商业介绍 · 清晰自然", "instruction":"A clear American English voice speaking to one listener, natural, fully voiced and smooth. Relaxed close conversational delivery, crisp intelligible words and gentle natural expression. No whispering, vocal fry or coarse texture."},
+    {"id":"clean-warm", "name":"温暖饱满 · 自然实声", "instruction":"A warm, rounded American English voice with clear fully voiced speech and natural resonance. Easy conversational phrasing, believable expression and precise articulation, without whispering or gravelly texture."},
     {"id":"ugc", "name":"美式 UGC · 欢快推荐", "instruction":"A cheerful young American woman sharing a useful find with a friend. Bright smiling voice, spontaneous conversational rhythm, expressive pitch changes and playful emphasis. Enthusiastic but believable, not a formal announcer."},
     {"id":"friendly", "name":"美式女声 · 自然介绍", "instruction":"A friendly American English woman speaking naturally to one listener. Warm clear voice, relaxed connected speech, varied emphasis and an easy conversational pace."},
     {"id":"male", "name":"美式男声 · 沉稳可信", "instruction":"A confident American English male narrator with a warm lower register. Conversational, grounded and trustworthy. Clear pronunciation, subtle expressive emphasis and a natural unhurried pace."},
@@ -29,10 +33,10 @@ PRESETS = [
     {"id":"energetic", "name":"活力男声 · 明亮有劲", "instruction":"An upbeat young American English man with an energetic smiling voice. Playful conversational emphasis, lively pitch variation and brisk but clear connected speech."},
     {"id":"calm", "name":"舒缓女声 · 轻柔自然", "instruction":"A gentle American English woman speaking calmly and warmly. Soft clear tone, unhurried pacing, subtle natural expression, like a reassuring conversation."},
 ]
-DEFAULTS = {"mode":"design", "instruction":PRESETS[0]["instruction"], "cfg_scale":4,
+DEFAULTS = {"mode":"design", "instruction":PRESETS[2]["instruction"], "cfg_scale":4,
             "seed":42, "temperature":0.9, "top_p":1.0, "top_k":50,
             "repetition_penalty":1.1, "max_new_tokens":750, "segment_chars":350,
-            "pause_ms":180, "variants":1, "voice_id":"", "normalize":False,"do_sample":True,"tone_profile":"clear"}
+            "pause_ms":180, "variants":1, "voice_id":"", "normalize":False,"do_sample":True,"tone_profile":"clear","enhance":False}
 TERMINAL = {"complete", "error", "cancelled", "interrupted"}
 
 
@@ -131,6 +135,7 @@ def validate_options(raw: dict) -> dict:
     if not isinstance(options["voice_id"],str) or (options["voice_id"] and not re.fullmatch(r"[0-9a-f]{32}",options["voice_id"])):
         raise ValueError("参考声音 ID 不正确")
     if not isinstance(options["normalize"],bool): raise ValueError("normalize 必须为布尔值")
+    if not isinstance(options["enhance"],bool): raise ValueError("后期处理参数必须为布尔值")
     if not isinstance(options["do_sample"],bool): raise ValueError("do_sample 必须为布尔值")
     if options['tone_profile'] not in ('clear','full'): raise ValueError('请选择清亮或圆润音色')
     if options["mode"]=="clone": options.update(instruction="",cfg_scale=1)
@@ -314,6 +319,31 @@ class Studio:
             self.update(job_id,status="queued",error="",audio_seconds=0)
         self.wake.set()
 
+    def regenerate_segment(self,job_id,index):
+        with self.lock:
+            original=self.get(job_id)
+            if not original or original['status']!='complete':raise ValueError('只能重新生成已完成任务的分段。')
+            chunks=split_text(original['text'],original['options']['segment_chars'])
+            if isinstance(index,bool) or not isinstance(index,int) or not 0<=index<len(chunks):raise ValueError('分段编号无效。')
+            source=self.output/(job_id+'_parts')
+            if any(not (source/f'{i:04d}.wav').is_file() for i in range(len(chunks))):raise ValueError('原任务的分段文件不完整，无法单段重生成。')
+            options={**original['options'],'variants':1,'seed':(original['options']['seed']+1)%2147483648}
+            result=self.submit([original['text']],options);new_id=result['id']
+            destination=self.output/(new_id+'_parts');destination.mkdir(exist_ok=True)
+            try:
+                for i in range(len(chunks)):
+                    if i!=index:shutil.copyfile(source/f'{i:04d}.wav',destination/f'{i:04d}.wav')
+                previous=original['result'].get('segment_details',[])
+                seeds=[previous[i].get('seed',original['options']['seed']) if i<len(previous) else original['options']['seed'] for i in range(len(chunks))]
+                seeds[index]=options['seed']
+                changes={'segment_voice_lock':1,'vocal_event_guidance':1,'revision_of':job_id,'revision_segment':index,'segment_seeds':seeds}
+                if index==0 and options['mode']=='design':
+                    shutil.copyfile(source/'0000.wav',destination/'anchor-reference.wav');changes['revision_anchor']=True
+                self.update(new_id,**changes)
+            except Exception:
+                self.cancel(new_id);raise
+            return result
+
     def start(self,ready):
         self.ready=ready
         self.thread=threading.Thread(target=self.run,daemon=True); self.thread.start()
@@ -390,6 +420,11 @@ class Studio:
                         if voice:
                             ref_file=(self.voices/(voice['id']+".wav")).open("rb")
                             files={"ref_audio":("reference.wav",ref_file,"audio/wav")};data["ref_text"]=voice["transcript"]
+                        elif o['mode']=='design' and i==0 and job.get('revision_anchor'):
+                            anchor=parts_dir/'anchor-reference.wav';duration=sf.info(anchor).duration
+                            if not .5<=duration<=60:raise ValueError('原首段不适合作参考声音，请重新生成完整任务。')
+                            ref_file=anchor.open('rb');files={'ref_audio':('first-segment.wav',ref_file,'audio/wav')}
+                            data.update(ref_text=chunks[0],instruction=event_direction,cfg_scale='2' if event_direction else '1')
                         elif lock_designed_voice and i>0:
                             # Always anchor to the same first segment, never chain
                             # the preceding segment: chaining accumulates voice drift.
@@ -420,6 +455,7 @@ class Studio:
                 info=sf.info(part)
                 if info.duration>=o["max_new_tokens"]/12.5-.16:
                     warnings.append(f"第 {i+1} 段可能达到长度上限，请试听检查结尾，缩短分段后重新生成。")
+                warnings.extend(f'第 {i+1} 段：{message}' for message in inspect_audio(part))
                 parts.append(part);self.update(job_id,segments_done=i+1)
             if self.cancelled(job_id): raise InterruptedError()
             with wave.open(str(temporary),"wb") as output:
@@ -428,18 +464,28 @@ class Studio:
                     with wave.open(str(path),"rb") as source:
                         while pcm:=source.readframes(24000*8): output.writeframesraw(pcm)
                     if i+1<len(parts): output.writeframesraw(b'\0\0'*int(24*o["pause_ms"]))
-            if o["normalize"]:
-                audio,rate=sf.read(temporary,dtype="float32");peak=float(np.max(np.abs(audio)))
-                if peak>1e-6: sf.write(temporary,audio*(.89125/peak),rate,format="WAV",subtype="PCM_16")
+            original_url=None
+            if o['normalize'] or o.get('enhance',False):
+                raw=self.output/(job_id+'.raw.wav');shutil.copyfile(temporary,raw)
+                original_url='/api/jobs/'+job_id+'/original'
+                audio,rate=sf.read(temporary,dtype="float32")
+                if o.get('enhance',False):audio=gentle_highpass(audio,rate)
+                if o['normalize']:
+                    peak=float(np.max(np.abs(audio)))
+                    if peak>1e-6:audio=audio*(.89125/peak)
+                sf.write(temporary,np.clip(audio,-1,1),rate,format="WAV",subtype="PCM_16")
             if self.cancelled(job_id): raise InterruptedError()
             temporary.replace(target)
             info=sf.info(target)
+            if o['normalize'] or o.get('enhance',False):warnings.extend('处理后：'+message for message in inspect_audio(target))
             record={"id":job_id,"text":job["text"],"instruction":o["instruction"],"mode":o["mode"],
                     "seed":o["seed"],"cfg_scale":o["cfg_scale"],"duration":round(info.duration,2),
                     "elapsed":round(time.monotonic()-started,1),"created":time.time(),"url":"/audio/"+target.name,
                     "warnings":warnings,"segments":len(parts),"options":o,
                     "voice_consistency":"first_segment_reference" if lock_designed_voice else "saved_reference" if o.get('voice_id') else "single_segment",
                     "vocal_event_guidance":bool(vocal_event_instruction(job['text'])),
+                    "original_url":original_url,
+                    "segment_details":[{'index':i,'text':text,'seed':job.get('segment_seeds',[o['seed']]*len(chunks))[i],'url':f'/api/jobs/{job_id}/segments/{i}/audio','warnings':inspect_audio(parts[i])} for i,text in enumerate(chunks)],
                     "effective_instruction":effective_instruction(o,job['text'])}
             self.update(job_id,status="complete",result=record,error="",audio_seconds=record["duration"])
         except InterruptedError:
