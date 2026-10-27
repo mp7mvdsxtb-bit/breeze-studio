@@ -7,6 +7,18 @@ async function loadUpdateInfo(check=false){
 document.querySelector('#check-update').onclick=()=>loadUpdateInfo(true);
 document.querySelector('#auto-update').onchange=async e=>{e.target.disabled=true;try{const response=await fetch('/api/updates/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({automatic:e.target.checked})});if(!response.ok)throw Error('保存更新设置失败');await loadUpdateInfo()}catch(error){document.querySelector('#update-status').textContent=error.message;e.target.checked=!e.target.checked}finally{e.target.disabled=false}};
 loadUpdateInfo();
+let eventSuggestionSource='',eventSuggestions=[];
+document.querySelector('#suggest-events').onclick=async()=>{
+ const text=document.querySelector('#text').value;const out=document.querySelector('#event-suggestions');out.hidden=false;out.replaceChildren();
+ try{const response=await fetch('/api/event-suggestions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});const data=await response.json();if(!response.ok)throw Error(data.detail||'无法生成建议');
+ if(document.querySelector('#text').value!==text){out.textContent='文案已修改，请重新获取建议。';return}
+ eventSuggestionSource=text;eventSuggestions=data.suggestions;
+ if(!eventSuggestions.length){out.textContent='没有发现特别适合的发声事件；保持自然也很好。可手动插入。';return}
+ const heading=document.createElement('p');heading.textContent='以下是基于文字线索的少量建议，请选择后采用：';out.append(heading);
+ eventSuggestions.forEach((item,index)=>{const label=document.createElement('label');label.className='check-label';const box=document.createElement('input');box.type='checkbox';box.checked=true;box.value=index;label.append(box,document.createTextNode(item.tag+' · '+item.reason+' 「'+item.sentence+'」'));out.append(label)});
+ const apply=document.createElement('button');apply.type='button';apply.className='secondary';apply.textContent='插入选中的建议';apply.onclick=()=>{const field=document.querySelector('#text');if(field.value!==eventSuggestionSource){out.textContent='文案已修改，请重新获取建议。';return}let chars=Array.from(eventSuggestionSource);const selected=[...out.querySelectorAll('input:checked')].map(x=>eventSuggestions[Number(x.value)]).sort((a,b)=>b.position-a.position);if(!selected.length){out.textContent='未选择建议，文案保持原样。';return}for(const item of selected)chars.splice(item.position,0,...Array.from(item.tag+' '));const proposed=chars.join('');if(proposed.length>field.maxLength){out.textContent='插入后超过文案长度上限，请精简文案。';return}field.value=proposed;field.dispatchEvent(new Event('input',{bubbles:true}));out.hidden=true};out.append(apply)
+ }catch(error){out.textContent=error.message}
+};
 const $=s=>document.querySelector(s), names={design:'声音设计',clone:'声音克隆',direction:'声音指导'};
 const labels={queued:'排队中',running:'生成中',cancelling:'正在停止',complete:'已完成',error:'失败',cancelled:'已取消',interrupted:'已中断'};
 let config,mode='design',view='create',voices=[],records=[],focusJob=null,selectedResult=null,shownResult=null,submitting=false,offset=0,total=0,paused=false,ticking=false,refUrl=null,live=null,toastTimer;

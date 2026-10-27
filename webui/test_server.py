@@ -8,6 +8,13 @@ import server
 from studio import Studio
 
 
+def test_event_recommendation_validation(tmp_path,monkeypatch):
+    monkeypatch.setattr(server,'studio',Studio(tmp_path,'http://127.0.0.1:1'))
+    client=TestClient(server.app)
+    assert client.post('/api/event-suggestions',json={'text':'What a relief.'}).json()['suggestions'][0]['tag']=='(sigh)'
+    assert client.post('/api/event-suggestions',json={'text':''}).status_code==400
+
+
 def test_update_settings(tmp_path,monkeypatch):
     monkeypatch.setattr(server,'ROOT',tmp_path)
     client=TestClient(server.app)

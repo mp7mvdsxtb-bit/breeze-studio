@@ -20,6 +20,7 @@ from starlette.background import BackgroundTask
 from studio import Studio, PRESETS, DEFAULTS, split_text, validate_options
 from translation import LocalTranslator, TranslationBusy
 from updater import Updater
+from event_suggestions import suggest
 
 ROOT=Path(__file__).resolve().parents[1]
 BACKEND="http://127.0.0.1:7860"
@@ -73,6 +74,12 @@ async def lifespan(app):
 app=FastAPI(title="Breeze Studio",lifespan=lifespan)
 app.mount("/static",StaticFiles(directory=STATIC),name="static")
 
+@app.post('/api/event-suggestions')
+def event_suggestions(payload:dict):
+    try:return suggest(payload.get('text'))
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
 
 @app.get('/api/updates')
 def updates(check:bool=False):
@@ -99,7 +106,7 @@ def state():
 
 
 @app.get("/api/config")
-def config():return {"presets":PRESETS,"defaults":DEFAULTS,"voices":studio.list_voices(),"events":["(laugh)","(sigh)","(cough)","(clears throat)"],"hardware":"RTX 5060 · 8GB · 串行低显存模式"}
+def config():return {"presets":PRESETS,"defaults":DEFAULTS,"voices":studio.list_voices(),"events":["(laugh)","(sigh)","(cough)","(clears throat)"],"hardware":"本地串行低显存模式"}
 
 
 @app.post('/api/translate-description')
