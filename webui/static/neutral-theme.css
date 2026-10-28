@@ -1,0 +1,41 @@
+/* A neutral product palette inspired by the Apple website. */
+:root{--accent:#0071e3;--line:#dfe1e5;--focus-ring:#0066cc}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;background:#f5f5f7;color:#1d1d1f}
+.sidebar{background:#fbfbfd;border-color:#e5e5e7}
+.brand,.brand-icon{color:#1d1d1f}.brand-small,.nav-label{color:#6e6e73}
+.nav-item{color:#515154}.nav-item:hover:not(.selected){background:#ededf0;color:#1d1d1f}
+.nav-item.selected{background:#e8e8ed;color:#1d1d1f}
+.nav-item.selected>span:first-child{color:#0066cc}
+.topbar{background:#f5f5f7}.breadcrumb,.page-heading p{color:#6e6e73}
+.page-heading h1{color:#1d1d1f;letter-spacing:-.025em}
+.editor-card,.result-card,.recent-card,.panel,.history-card{background:#fff;border-color:#e5e5e7;box-shadow:0 6px 24px rgba(0,0,0,.035)}
+.mode-tabs{background:#f5f5f7}.mode-tab{color:#6e6e73}
+.mode-tab:hover:not(.active){background:#e8e8ed;color:#1d1d1f}
+.mode-tab.active{background:#fff;color:#1d1d1f;box-shadow:0 2px 8px #00000012}
+.mode-tab.active:after{background:#0071e3}
+.mode-description,.helper,.text-footer{color:#6e6e73}
+.section-label label,.field-label,.card-heading h2{color:#1d1d1f}
+.text-box,.simple-input{border-color:#d2d2d7;background:#fff;color:#1d1d1f}
+.text-box:focus-within,.simple-input:focus{border-color:#0071e3;box-shadow:0 0 0 3px #0071e329}
+.primary{background:#0071e3;color:white}
+.primary:hover:not(:disabled){background:#0077ed;box-shadow:0 6px 16px #0071e32b}
+.secondary,.text-button{color:#0066cc}
+.secondary:hover:not(:disabled),.quick-actions button:hover:not(:disabled),.presets button:hover:not(:disabled),.event-tools button:hover:not(:disabled){background:#eef5fc;border-color:#c6dbf0;color:#004b99}
+.quick-actions button{background:#f0f5fa;color:#0066cc}
+.compact-group,.advanced>summary{background:#f9f9fb;border-color:#e5e5e7}
+.compact-group>summary,.advanced>summary{color:#424245}
+.compact-group>summary:hover,.advanced>summary:hover{background:#f0f0f2}
+.compact-group[open],.advanced[open]{border-color:#d2d2d7}
+.compact-group>summary:after,.compact-group[open]>summary:after{color:#6e6e73}
+.secondary-group{background:#fff}.editor-actions{background:#fff}
+.empty-disc{background:#f5f5f7;color:#86868b}.empty-disc i{border-color:#e5e5e7}
+.download-button{background:#f5f8fc;border-color:#d8e7f5;color:#0066cc}
+.download-button:hover{background:#eaf3fc}
+.recent-play{background:#eef5fc;color:#0066cc}
+.history-mode,.tag{background:#f5f5f7;color:#6e6e73}
+.history-bottom a,.history-bottom button{color:#0066cc}
+.status{background:#f2f5f2}.status i,.model-dot{background:#45a86b}
+.result-success{background:#edf7f0;color:#287a43}
+.presets button.selected{background:#edf5fd;border-color:#bcd8f5;color:#0066cc}
+.animated-wave i,.indeterminate span{background:#0071e3}.indeterminate{background:#e6f1fb}
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:#0071e3}
