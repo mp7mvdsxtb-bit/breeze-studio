@@ -21,6 +21,7 @@ from studio import Studio, PRESETS, DEFAULTS, split_text, validate_options
 from translation import LocalTranslator, TranslationBusy
 from updater import Updater
 from event_suggestions import suggest
+from script_check import check
 
 ROOT=Path(__file__).resolve().parents[1]
 BACKEND="http://127.0.0.1:7860"
@@ -157,7 +158,10 @@ def state():
 
 
 @app.get("/api/config")
-def config():return {"presets":PRESETS,"defaults":DEFAULTS,"voices":studio.list_voices(),"events":["(laugh)","(sigh)","(cough)","(clears throat)"],"hardware":"本地串行低显存模式"}
+def config():
+    default=studio.setting('default_voice_id','')
+    if default and (not studio.voice(default) or studio.voice_blocked(default)):default=''
+    return {"presets":PRESETS,"defaults":DEFAULTS,"voices":studio.list_voices(),"default_voice_id":default,"events":["(laugh)","(sigh)","(cough)","(clears throat)"],"hardware":"本地串行低显存模式"}
 
 
 @app.post('/api/translate-description')
@@ -227,6 +231,27 @@ async def save_voice(name:str=Form(...),transcript:str=Form(...),audio:UploadFil
 
 @app.get("/api/voices")
 def voices():return studio.list_voices()
+
+
+@app.patch('/api/voices/{voice_id}')
+def update_voice(voice_id:str,payload:dict):
+    try:return studio.update_voice(voice_id,payload)
+    except KeyError as exc:raise HTTPException(404,str(exc)) from exc
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.put('/api/default-voice')
+def default_voice(payload:dict):
+    value=payload.get('voice_id')
+    if not isinstance(value,str) or (value and not re.fullmatch(r'[0-9a-f]{32}',value)):raise HTTPException(400,'声音编号错误。')
+    try:return {'voice_id':studio.set_default_voice(value)}
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
+
+
+@app.post('/api/script-check')
+def script_check(payload:dict):
+    try:return check(payload.get('text'))
+    except ValueError as exc:raise HTTPException(400,str(exc)) from exc
 
 
 @app.delete('/api/voices/{voice_id}')

@@ -219,6 +219,33 @@ class Studio:
         for voice in voices:voice['blocked']=self.voice_blocked(voice['id'])
         return voices
 
+    def update_voice(self,voice_id,changes):
+        allowed={'name','category','notes','style_description','favorite','recommended_options'}
+        if not isinstance(changes,dict) or set(changes)-allowed:raise ValueError('声音档案字段错误。')
+        with self.lock,self.connect() as db:
+            row=db.execute('SELECT data FROM voices WHERE id=?',(voice_id,)).fetchone()
+            if not row:raise KeyError('声音不存在。')
+            data=json.loads(row[0]);checked={}
+            for key,limit in (('name',80),('category',50),('notes',500),('style_description',1000)):
+                if key in changes:
+                    value=changes[key]
+                    if not isinstance(value,str) or len(value)>limit or (key=='name' and not value.strip()):raise ValueError('声音档案内容无效或过长。')
+                    checked[key]=value.strip()
+            if 'favorite' in changes:
+                if type(changes['favorite']) is not bool:raise ValueError('收藏状态无效。')
+                checked['favorite']=changes['favorite']
+            if 'recommended_options' in changes:
+                value=changes['recommended_options']
+                checked['recommended_options']=None if value is None else validate_options(value)
+            data.update(checked);db.execute('UPDATE voices SET data=? WHERE id=?',(json.dumps(data,ensure_ascii=False),voice_id))
+        return data
+
+    def set_default_voice(self,voice_id):
+        with self.lock:
+            if voice_id and (not self.voice(voice_id) or self.voice_blocked(voice_id)):raise ValueError('声音不存在或已被排除。')
+            self.set_setting('default_voice_id',voice_id)
+        return voice_id
+
     def delete_voice(self,voice_id):
         if not re.fullmatch(r'[0-9a-f]{32}',voice_id):raise ValueError('声音编号无效')
         with self.lock,self.connect() as db:
@@ -229,6 +256,7 @@ class Studio:
                 raise ValueError('排队中或正在运行的任务正在使用这个声音，请等待完成或取消任务后再删除。')
             (self.voices/(voice_id+'.wav')).unlink(missing_ok=True)
             db.execute('DELETE FROM voices WHERE id=?',(voice_id,))
+            if self.setting('default_voice_id','')==voice_id:db.execute("DELETE FROM settings WHERE key='default_voice_id'")
         return {'deleted':True,'id':voice_id}
 
     def voice_blocked(self,voice_id):
