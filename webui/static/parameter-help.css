@@ -1,0 +1,19 @@
+.parameter-settings .settings-intro{margin:18px 2px 0;color:#6e6e73;font-size:13px;line-height:1.7}
+.parameter-settings .settings-subtitle{margin:25px 2px 0;color:#1d1d1f;font-size:14px;font-weight:600}
+.parameter-settings .parameter-grid{gap:12px;margin-top:12px}
+.parameter-settings .parameter{min-width:0;padding:16px;border:1px solid #e5e5e7;border-radius:12px;background:#fbfbfd}
+.parameter-settings .parameter>label{display:flex;align-items:center;margin:0 0 9px;color:#1d1d1f;font-size:13px;font-weight:600}
+.parameter-settings .parameter input[type=number],.parameter-settings .parameter select{width:100%;box-sizing:border-box}
+.parameter-settings .parameter input[type=range]{margin:8px 0;accent-color:#0071e3}
+.parameter-settings .parameter output{color:#0066cc}
+.parameter-settings .parameter small,.parameter-settings .parameter-switch small{display:block;margin:10px 0 0;color:#6e6e73;font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.parameter-settings .seed-row input{min-width:0}
+.parameter-settings .seed-row button{flex:0 0 38px;border-radius:8px;color:#0066cc;background:#fff}
+.parameter-settings .parameter-switches{display:grid;gap:9px;margin:12px 0 18px}
+.parameter-settings .parameter-switch{padding:13px 16px;border:1px solid #e5e5e7;border-radius:10px;background:#fbfbfd}
+.parameter-settings .parameter-switch label{display:flex;justify-content:flex-start;align-items:center;gap:8px;margin:0;color:#1d1d1f;font-size:13px;font-weight:600}
+.parameter-settings .parameter-switch input{margin:0;flex:0 0 auto}
+.parameter-settings .parameter-switch small{margin:7px 0 0 24px}
+.parameter-settings .hardware-note{margin:13px 0 4px;color:#6e6e73;font-size:12px;line-height:1.7}
+@media(max-width:850px){.workspace{grid-template-columns:minmax(0,1fr)}.editor-card{min-width:0}}
+@media(max-width:600px){.parameter-settings .parameter-grid{grid-template-columns:minmax(0,1fr)}.parameter-settings .parameter{padding:14px}}
