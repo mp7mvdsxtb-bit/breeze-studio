@@ -181,6 +181,14 @@ def job_list(limit:int=50,offset:int=0,search:str="",status:str=""):
     return studio.list_jobs(min(max(limit,1),100),max(offset,0),search[:200],status)
 
 
+@app.get('/api/batches/{batch_id}')
+def batch_jobs(batch_id:str):
+    if not re.fullmatch(r'[0-9a-f]{32}',batch_id):raise HTTPException(400,'批次 ID 错误')
+    with studio.lock,studio.connect() as db:
+        rows=db.execute('SELECT data FROM jobs WHERE batch_id=? ORDER BY created',(batch_id,)).fetchall()
+    return {'items':[json.loads(row[0]) for row in rows]}
+
+
 @app.get("/api/jobs/{job_id}")
 def job_get(job_id:str):
     job=studio.get(job_id)
@@ -327,8 +335,8 @@ def choose_preview_voice(job_id:str):
 @app.post('/api/voice-feedback/{job_id}')
 def voice_feedback(job_id:str,payload:dict):
     labels=payload.get('labels')
-    allowed={'satisfied','raspy','hollow','unnatural'}
-    if not isinstance(labels,list) or len(labels)>4 or any(not isinstance(v,str) or v not in allowed for v in labels) or len(set(labels))!=len(labels):
+    allowed={'satisfied','raspy','hollow','unnatural','mispronounced'}
+    if not isinstance(labels,list) or len(labels)>5 or any(not isinstance(v,str) or v not in allowed for v in labels) or len(set(labels))!=len(labels):
         raise HTTPException(400,'试听反馈格式错误。')
     with studio.lock:
         job=studio.get(job_id)
@@ -401,9 +409,9 @@ def voice_audio(name:str):return FileResponse(wav_path(name,studio.voices),media
 
 
 @app.get("/api/export")
-def export(batch_id:str|None=None):
+def export(batch_id:str|None=None, name_prefix:str=''):
     if batch_id is not None and not re.fullmatch(r"[0-9a-f]{32}|legacy",batch_id):raise HTTPException(400,"批次 ID 错误")
-    try:path=studio.export(batch_id)
+    try:path=studio.export(batch_id,name_prefix[:80])
     except ValueError as exc:raise HTTPException(400,str(exc)) from exc
     return FileResponse(path,media_type="application/zip",filename="Breeze-audio.zip",background=BackgroundTask(path.unlink,missing_ok=True))
 
@@ -411,8 +419,9 @@ def export(batch_id:str|None=None):
 @app.get("/api/export/status")
 def export_status(batch_id:str|None=None):
     with studio.lock,studio.connect() as db:
-        count=db.execute("SELECT COUNT(*) FROM jobs WHERE status='complete'"+(" AND batch_id=?" if batch_id else ""),(batch_id,) if batch_id else ()).fetchone()[0]
-    return {"count":count}
+        rows=db.execute("SELECT data FROM jobs WHERE status='complete'"+(" AND batch_id=?" if batch_id else ""),(batch_id,) if batch_id else ()).fetchall()
+    jobs=[json.loads(row[0]) for row in rows]
+    return {"count":len(jobs),"unreviewed":sum(not j.get('subjective_feedback') for j in jobs),"unsatisfied":sum(any(x in j.get('subjective_feedback',[]) for x in ('raspy','hollow','unnatural','mispronounced')) for j in jobs)}
 
 
 @app.get("/api/jobs/{job_id}/live")

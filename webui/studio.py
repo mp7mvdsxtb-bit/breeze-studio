@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 import numpy as np
 import soundfile as sf
-from audio_quality import inspect_audio, gentle_highpass
+from audio_quality import inspect_audio, gentle_highpass, compare_segment_levels
 
 PRESETS = [
     {"id":"clean-commercial", "name":"美式女声 · 清晰自然（推荐）", "instruction":"A clear American English woman speaking to one listener, natural, fully voiced and smooth. Relaxed close conversational delivery, crisp intelligible words and gentle natural expression. No whispering, vocal fry or coarse texture."},
@@ -487,6 +487,7 @@ class Studio:
                 warnings.extend(f'第 {i+1} 段：{message}' for message in inspect_audio(part))
                 parts.append(part);self.update(job_id,segments_done=i+1)
             if self.cancelled(job_id): raise InterruptedError()
+            warnings.extend(compare_segment_levels(parts))
             with wave.open(str(temporary),"wb") as output:
                 output.setparams((1,2,24000,0,"NONE","not compressed"))
                 for i,path in enumerate(parts):
@@ -522,11 +523,17 @@ class Studio:
         except Exception as exc:
             message=str(exc)
             if "out of memory" in message.lower(): message="显存不足，请关闭其他 GPU 程序，降低分段长度，然后重试。"
-            self.update(job_id,status="error",error=message)
+            # Only connection establishment errors are retried. Completed segments
+            # are retained; decoding, model and GPU errors require user action.
+            if isinstance(exc,(httpx.ConnectError,httpx.ConnectTimeout)) and job.get('attempts',0)<3 and not self.cancelled(job_id):
+                previous=job.get('retry_errors',[])
+                self.update(job_id,status='queued',error='临时连接失败，准备自动重试。',retry_errors=(previous+[message])[-3:])
+            else:
+                self.update(job_id,status="error",error=message)
         finally:
             temporary.unlink(missing_ok=True)
 
-    def export(self,batch_id=None):
+    def export(self,batch_id=None, name_prefix=''):
         with self.lock,self.connect() as db:
             rows=db.execute("SELECT data FROM jobs WHERE status='complete'"+(" AND batch_id=?" if batch_id else "")+" ORDER BY created",(batch_id,) if batch_id else ()).fetchall()
         records=[json.loads(r[0]) for r in rows]
@@ -537,8 +544,11 @@ class Studio:
             for index,j in enumerate(records):
                 path=self.output/(j['id']+'.wav')
                 if not path.exists(): continue
-                filename=f"{index+1:04d}_{j['id'][:8]}.wav"
+                voice=self.voice(j['options'].get('voice_id','')) or {}
+                safe=lambda s: re.sub(r'[^\w\-]+','_',str(s),flags=re.UNICODE).strip('_')[:50]
+                prefix=safe(name_prefix)
+                filename='_'.join(filter(None,[prefix,f'{index+1:04d}',safe(voice.get('name','')),j['id'][:8]]))+'.wav'
                 z.write(path,filename)
-                manifest.append({"filename":filename,"text":j["text"],"options":j["options"],"result":j["result"]})
+                manifest.append({"filename":filename,"text":j["text"],"voice_name":voice.get('name',''),"options":j["options"],"feedback":j.get('subjective_feedback',[]),"result":j["result"]})
             z.writestr("manifest.json",json.dumps(manifest,ensure_ascii=False,indent=2))
         return archive
