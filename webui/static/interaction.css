@@ -1,0 +1,36 @@
+/* Short, restrained feedback; nothing blocks input or audio playback. */
+:root{--motion-fast:160ms;--motion-normal:240ms;--focus-ring:#397b65}
+.nav-item,.mode-tab,.primary,.secondary,.text-button,.quick-actions button,
+.presets button,.event-tools button,.compact-group>summary,.advanced>summary,
+.download-button,.file-button,.dropzone{
+ transition:background-color var(--motion-fast) ease,color var(--motion-fast) ease,
+ border-color var(--motion-fast) ease,box-shadow var(--motion-fast) ease,transform var(--motion-fast) ease;
+}
+.nav-item:hover:not(.selected){background:#f1f7f3;color:#315e50}
+.mode-tab:hover:not(.active){background:#e8f1eb;color:#315e50}
+.secondary:hover:not(:disabled),.quick-actions button:hover:not(:disabled),
+.presets button:hover:not(:disabled),.event-tools button:hover:not(:disabled){background:#eaf3ed;border-color:#b5cdbd;color:#305d4d}
+.compact-group>summary:hover,.advanced>summary:hover{background:#f0f6f2}
+.compact-group[open],.advanced[open]{border-color:#cbded1}
+.compact-group[open]>:not(summary),.advanced[open]>:not(summary){animation:reveal-content var(--motion-normal) ease both}
+.compact-group>summary:after{transition:color var(--motion-fast) ease,transform var(--motion-fast) ease}
+.compact-group[open]>summary:after{color:#48776a;transform:rotate(180deg)}
+.primary:hover:not(:disabled){box-shadow:0 6px 16px #48776a2b;transform:translateY(-1px)}
+.primary:active:not(:disabled),.secondary:active:not(:disabled),.quick-actions button:active:not(:disabled){transform:translateY(1px)}
+button:disabled{cursor:not-allowed;opacity:.55}
+.text-box,.simple-input{transition:border-color var(--motion-fast) ease,box-shadow var(--motion-fast) ease,background-color var(--motion-fast) ease}
+button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{
+ outline:3px solid var(--focus-ring);outline-offset:3px
+}
+.text-box:focus-within{box-shadow:0 0 0 3px #e7f1eb}
+.view:not([hidden]){animation:view-enter var(--motion-normal) ease both}
+.audio-result:not([hidden]),.generation-progress:not([hidden]),.segment-preview:not([hidden]),.error-box:not([hidden]){animation:reveal-content var(--motion-normal) ease both}
+.toast:not([hidden]){animation:toast-enter var(--motion-normal) ease both}
+.status i,.model-dot{transition:background-color var(--motion-normal) ease}
+@keyframes view-enter{from{opacity:.65;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes reveal-content{from{opacity:.5;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toast-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){
+ *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+ .primary:hover:not(:disabled),.primary:active:not(:disabled),.secondary:active:not(:disabled),.quick-actions button:active:not(:disabled){transform:none}
+}
