@@ -321,14 +321,16 @@ def voice_preview_check(payload:dict):
 
 
 @app.post('/api/voice-preview/{job_id}/choose')
-def choose_preview_voice(job_id:str):
+def choose_preview_voice(job_id:str,payload:dict|None=None):
     job=studio.get(job_id)
     if not job or job['status']!='complete':raise HTTPException(404,'候选声音尚未完成。')
     if job.get('segment_count',1)!=1:raise HTTPException(400,'请选择未分段的短试听作为参考。')
     if any('长度上限' in w for w in job['result'].get('warnings',[])):raise HTTPException(400,'试听可能被截断，请缩短文案后重新试听。')
+    name=(payload or {}).get('name','已选英语音色 '+job_id[:8])
+    if not isinstance(name,str) or not name.strip() or len(name)>80:raise HTTPException(400,'请填写不超过 80 个字符的声音名称。')
     path=studio.output/(job_id+'.wav')
     try:
-        with path.open('rb') as audio:return studio.save_voice('已选英语音色 '+job_id[:8],job['text'],audio)
+        with path.open('rb') as audio:return studio.save_voice(name.strip(),job['text'],audio)
     except (ValueError,RuntimeError,OSError) as exc:raise HTTPException(400,str(exc)) from exc
 
 
